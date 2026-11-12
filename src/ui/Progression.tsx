@@ -17,18 +17,19 @@ const PRESETS: [name: string, chart: string][] = [
   ["Beginner (G C D)", "G | C | D | G"],
 ];
 
-type Drop = { kind: "insert" | "replace"; index: number } | { kind: "remove" } | null;
+type Drop = { kind: "insert" | "replace" | "split"; index: number } | { kind: "remove" } | null;
 type Drag = { chord: string; from: number | null; x: number; y: number; drop: Drop };
 
-/** Where a drag at (x, y) would land: between bars inserts, onto a bar replaces, outside removes a dragged bar. */
-function dropAt(x: number, y: number, from: number | null, barCount: number): Drop {
+/** Where a drag at (x, y) would land: between bars inserts, onto a bar adds to it (replaces once the bar is full), outside removes a dragged bar. */
+function dropAt(x: number, y: number, from: number | null, bars: string[][], beatsPerBar: number): Drop {
+  const barCount = bars.length;
   const el = document.elementFromPoint(x, y);
   const chip = el?.closest<HTMLElement>(".chip[data-i]");
   if (chip) {
     const i = Number(chip.dataset.i);
     const r = chip.getBoundingClientRect();
     const f = (x - r.left) / r.width;
-    if (from === null && f > 0.3 && f < 0.7) return { kind: "replace", index: i };
+    if (from === null && f > 0.3 && f < 0.7) return { kind: bars[i].length < beatsPerBar ? "split" : "replace", index: i };
     return { kind: "insert", index: f < 0.5 ? i : i + 1 };
   }
   if (el?.closest(".chips")) return { kind: "insert", index: barCount };
@@ -64,7 +65,7 @@ export function Progression({ s }: { s: Snapshot }) {
     const move = (ev: PointerEvent) => {
       if (!dragging && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
       dragging = true;
-      setDrag({ chord, from, x: ev.clientX, y: ev.clientY, drop: dropAt(ev.clientX, ev.clientY, from, barsRef.current.length) });
+      setDrag({ chord, from, x: ev.clientX, y: ev.clientY, drop: dropAt(ev.clientX, ev.clientY, from, barsRef.current, s.beatsPerBar) });
     };
     const up = () => {
       window.removeEventListener("pointermove", move);
@@ -94,7 +95,7 @@ export function Progression({ s }: { s: Snapshot }) {
 
   const custom = root + quality;
   const marker = (i: number) =>
-    drag?.drop?.kind === "replace" && drag.drop.index === i ? "drop-replace"
+    (drag?.drop?.kind === "replace" || drag?.drop?.kind === "split") && drag.drop.index === i ? "drop-replace"
     : drag?.drop?.kind === "insert" && drag.drop.index === i ? "drop-before"
     : drag?.drop?.kind === "insert" && drag.drop.index === i + 1 && i === bars.length - 1 ? "drop-after"
     : "";
@@ -108,7 +109,7 @@ export function Progression({ s }: { s: Snapshot }) {
             data-i={b}
             className={`chip ${marker(b)} ${drag?.from === b ? "lifted" : ""}`}
             onPointerDown={bar.length === 1 ? press(bar[0], b) : undefined}
-            title={locked ? undefined : "Tap to hear, drag to move, drag off to remove"}
+            title={locked ? undefined : "Tap to hear, drag to move, drag off to remove. Drop a chord onto a bar to split it."}
           >
             {bar.map((c, k) => (
               <span key={k} className="name" onPointerDown={bar.length > 1 ? press(c, null) : undefined}>
@@ -175,7 +176,7 @@ export function Progression({ s }: { s: Snapshot }) {
 
       {drag && (
         <span className={`tile ghost ${drag.drop?.kind === "remove" ? "removing" : ""}`} style={{ left: drag.x, top: drag.y }}>
-          {drag.drop?.kind === "remove" ? `✕ ${drag.chord}` : drag.chord}
+          {drag.drop?.kind === "remove" ? `✕ ${drag.chord}` : drag.drop?.kind === "split" ? `+ ${drag.chord}` : drag.chord}
         </span>
       )}
     </div>
@@ -185,6 +186,10 @@ export function Progression({ s }: { s: Snapshot }) {
 function applyDrop(bars: string[][], chord: string, from: number | null, drop: NonNullable<Drop>): string[][] {
   const next = bars.slice();
   if (drop.kind === "remove") return next.filter((_, i) => i !== from);
+  if (drop.kind === "split") {
+    next[drop.index] = [...next[drop.index], chord];
+    return next;
+  }
   if (drop.kind === "replace") {
     next[drop.index] = [chord];
     return next;
