@@ -32,7 +32,7 @@ function fftMag(re: Float64Array): Float64Array {
 export type ChromaOptions = { minHz?: number; maxHz?: number; gate?: number };
 
 /**
- * Samples -> 12 pitch-class energies (C=0), normalized to sum 1.
+ * Samples -> 12 pitch-class amplitudes (C=0), normalized to sum 1.
  * All zeros when the signal is below the RMS gate (nothing played).
  */
 export function chromaFromSamples(
@@ -52,11 +52,14 @@ export function chromaFromSamples(
   for (let i = 0; i < N; i++) buf[i] = samples[i] * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (N - 1)));
   const mag = fftMag(buf);
 
+  // Spectral peaks only (parabolic-interpolated), so main-lobe leakage doesn't smear low notes into
+  // the neighbouring semitone. Amplitude rather than power: power lets one loud string hide the rest.
   const lo = Math.ceil((minHz * n) / sampleRate), hi = Math.floor((maxHz * n) / sampleRate);
-  for (let k = Math.max(lo, 1); k <= hi && k < mag.length; k++) {
-    const f = (k * sampleRate) / n;
-    const pc = (((Math.round(69 + 12 * Math.log2(f / 440)) % 12) + 12) % 12);
-    chroma[pc] += mag[k] * mag[k];
+  for (let k = Math.max(lo, 1); k <= hi && k < mag.length - 1; k++) {
+    const a = mag[k - 1], b = mag[k], c = mag[k + 1];
+    if (b <= a || b < c) continue;
+    const f = ((k + (0.5 * (a - c)) / (a - 2 * b + c)) * sampleRate) / n;
+    chroma[(((Math.round(69 + 12 * Math.log2(f / 440)) % 12) + 12) % 12)] += b;
   }
   const total = chroma.reduce((a, b) => a + b, 0);
   return total ? chroma.map((v) => v / total) : chroma;
