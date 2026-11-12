@@ -45,15 +45,26 @@ export class Metronome {
     }
   }
 
+  private noise: AudioBuffer | null = null;
+
+  /** Unpitched noise tick: no note for the chord detectors to mistake for part of a chord. */
   private click(time: number, accent: boolean) {
     if (!this.volume) return;
-    const osc = this.ctx.createOscillator();
+    if (!this.noise) {
+      this.noise = this.ctx.createBuffer(1, Math.round(this.ctx.sampleRate * 0.03), this.ctx.sampleRate);
+      const d = this.noise.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noise;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = accent ? 3000 : 5000;
+    filter.Q.value = 1;
     const gain = this.ctx.createGain();
-    osc.frequency.value = accent ? 1500 : 1000;
-    gain.gain.setValueAtTime(this.volume, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
-    osc.connect(gain).connect(this.ctx.destination);
-    osc.start(time);
-    osc.stop(time + 0.05);
+    gain.gain.setValueAtTime(this.volume * (accent ? 2.5 : 1.8), time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.03);
+    src.connect(filter).connect(gain).connect(this.ctx.destination);
+    src.start(time);
   }
 }

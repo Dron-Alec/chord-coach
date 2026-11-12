@@ -83,3 +83,17 @@ describe("voicing", () => {
       }
   });
 });
+
+import { beatWindow, overlapsClick } from "../engine/window";
+
+describe("click masking", () => {
+  it("scoring window starts after the click when it is audible", () => {
+    const [start] = beatWindow(10, 0.75, true);
+    expect(overlapsClick(start, start + 0.3, [10])).toBe(false);
+    expect(beatWindow(10, 0.75, false)[0]).toBeLessThan(10);
+  });
+  it("keeps a usable window at fast tempos", () => {
+    const [start, end] = beatWindow(10, 0.3, true);
+    expect(end - start).toBeGreaterThanOrEqual(0.25);
+  });
+});

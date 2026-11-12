@@ -25,7 +25,7 @@ export default function App() {
       <header>
         <h1>Chord Coach</h1>
         <p className="muted">
-          Pick your chords, press Start, and strum each chord as it crosses the line. Wear headphones, or the click bleeds into the mic.
+          Pick your chords, press Start, and strum each chord as it crosses the line. Speakers are fine: the app ignores its own click.
         </p>
       </header>
       {s.error && <p className="error" role="alert">{s.error}</p>}

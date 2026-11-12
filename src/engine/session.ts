@@ -8,7 +8,7 @@ import { loadGuitar, playChord } from "../audio/guitar";
 import { chordReferences } from "./references";
 import { createStore } from "./store";
 import { detectors, type DetectorName } from "./detectors";
-import { beatWindow } from "./window";
+import { beatWindow, overlapsClick } from "./window";
 
 const KEEP_SECONDS = 6;
 
@@ -94,6 +94,7 @@ class Session {
   private countIn = 0;
   private history = new Map<number, BeatResult>();
   private refs: References = {};
+  private clicks: number[] = []; // scheduled click times, recent
 
   /** What each chart chord should sound like to the current detector (rendered from real guitar samples). */
   private async loadRefs() {
@@ -187,7 +188,12 @@ class Session {
     this.calOffsets = [];
     this.history = new Map();
     this.countIn = mode === "play" ? s.beatsPerBar : 0;
-    metro.onBeat = (beat, time) => this.pending.push({ beat, time });
+    this.clicks = [];
+    metro.onBeat = (beat, time) => {
+      this.pending.push({ beat, time });
+      this.clicks.push(time);
+      if (this.clicks.length > 32) this.clicks.shift();
+    };
     metro.start();
     this.startTime = metro.startTime;
     store.set({
@@ -270,7 +276,7 @@ class Session {
           this.reportCalibration();
           continue;
         }
-        const [winStart, winEnd] = beatWindow(real, spb);
+        const [winStart, winEnd] = beatWindow(real, spb, s.clickVolume > 0);
         if (winEnd > this.latestTime()) break;
         this.pending.shift();
         const chart = s.chart!;
@@ -280,6 +286,8 @@ class Session {
         const chord = chart.beats[i];
         const audio = this.extract(winStart, winEnd);
         const chroma = await detectors[s.detector](audio, this.ctx!.sampleRate);
+        // Nothing played (or only the click, which is skipped): no verdict, no dot, not counted.
+        if (!chroma.some((v) => v > 0)) continue;
         const { verdict, ratio } = scoreBeat(chroma, chord, this.refs, { threshold: s.threshold });
         const cur = store.get();
         if (!cur.running) break;
@@ -317,6 +325,10 @@ class Session {
     const heard = this.ctx.currentTime - (this.ctx.outputLatency || 0);
     const beat = Math.floor((heard - this.metro.startTime) / this.metro.secondsPerBeat) - this.countIn;
     const end = this.latestTime();
+    const s = store.get();
+    // Hold the last reading while the click is passing the mic, so the bars never show the metronome.
+    const arrivals = s.clickVolume > 0 ? this.clicks.map((t) => t + s.offsetMs / 1000) : [];
+    if (overlapsClick(end - 0.17, end, arrivals)) return store.set({ beat });
     store.set({ beat, liveChroma: chromaFromSamples(this.extract(end - 0.17, end), this.ctx.sampleRate) });
   }
 
@@ -341,7 +353,7 @@ class Session {
         if (t >= 0 && c >= 0) beats.push({ index: c, time: +t.toFixed(4), chord: s.chart.beats[c % s.chart.beats.length] });
       }
     }
-    const label = { sampleRate: sr, bpm: s.bpm, beatsPerBar: s.beatsPerBar, chart: s.chartText, offsetSec: s.offsetMs / 1000, beats };
+    const label = { sampleRate: sr, bpm: s.bpm, beatsPerBar: s.beatsPerBar, chart: s.chartText, offsetSec: s.offsetMs / 1000, clickAudible: s.clickVolume > 0, beats };
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     download(new Blob([encodeWav(samples, sr)], { type: "audio/wav" }), `take-${stamp}.wav`);
     download(new Blob([JSON.stringify(label, null, 2)], { type: "application/json" }), `take-${stamp}.json`);

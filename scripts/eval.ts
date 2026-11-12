@@ -13,6 +13,7 @@ type Label = {
   sampleRate: number;
   bpm: number;
   offsetSec: number;
+  clickAudible?: boolean; // click played through speakers; scoring skips it
   beats: { index: number; time: number; chord: string; played?: string }[];
 };
 
@@ -36,7 +37,7 @@ async function evalDir(dir: string, names: DetectorName[]) {
     let crossHits = 0, crossTotal = 0, ms = 0, windows = 0;
     for (const { samples, sampleRate, label } of takes) {
       for (const beat of label.beats) {
-        const [start, end] = beatWindow(beat.time + label.offsetSec, 60 / label.bpm).map((t) => Math.round(t * sampleRate));
+        const [start, end] = beatWindow(beat.time + label.offsetSec, 60 / label.bpm, label.clickAudible).map((t) => Math.round(t * sampleRate));
         const audio = new Float32Array(end - start); // zero-filled past the ends of the file, like live
         audio.set(samples.subarray(Math.max(0, start), Math.max(0, end)), Math.max(0, -start));
         const t0 = performance.now();
