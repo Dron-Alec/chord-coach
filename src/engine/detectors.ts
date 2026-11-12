@@ -5,6 +5,8 @@ export type Detector = (samples: Float32Array, sampleRate: number) => number[] |
 
 export const detectors = {
   chroma: (s, sr) => chromaFromSamples(s, sr),
+  // Dynamic import: TF.js and the model are only fetched once this detector runs.
+  basicPitch: async (s, sr) => (await import("../audio/basicPitch")).basicPitchChroma(s, sr),
 } satisfies Record<string, Detector>;
 
 export type DetectorName = keyof typeof detectors;
