@@ -291,7 +291,7 @@ class Session {
         }
         const [winStart, winEnd] = beatWindow(real, spb, s.clickVolume > 0);
         // Strums this far either side of the beat count as early/late for this beat.
-        const reach = Math.min(0.3 * spb, 0.2);
+        const reach = Math.min(0.45 * spb, 0.3);
         if (Math.max(winEnd, real + reach) > this.latestTime()) break;
         this.pending.shift();
         const chart = s.chart!;
@@ -308,7 +308,6 @@ class Session {
         const onset = strumOnset(this.extract(real - reach, real + reach), this.ctx!.sampleRate);
         const timing = onset === null ? null : onset - reach;
         const judgment = judge(verdict, timing);
-        if (!judgment) continue;
         const cur = store.get();
         if (!cur.running) break;
         const results = cur.results.slice();

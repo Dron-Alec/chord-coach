@@ -41,7 +41,7 @@ describe("strumOnset", () => {
 
 describe("judge", () => {
   it.each([
-    ["hit", 0.02, "perfect"], ["hit", -0.12, "early"], ["hit", 0.12, "late"],
-    ["hit", null, "hold"], ["miss", 0, "not-quite"], ["uncertain", 0, "not-quite"], ["uncertain", null, null],
+    ["hit", 0.02, "perfect"], ["hit", -0.12, "early"], ["hit", 0.12, "late"], ["hit", -0.09, "perfect"],
+    ["hit", null, "hold"], ["miss", 0, "not-quite"], ["uncertain", 0, "not-quite"], ["uncertain", null, "not-quite"],
   ] as const)("%s at %s -> %s", (v, t, j) => expect(judge(v, t)).toBe(j));
 });

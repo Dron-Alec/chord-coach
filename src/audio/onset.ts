@@ -60,11 +60,10 @@ export function strumOnset(
 export type Judgment = "perfect" | "early" | "late" | "not-quite" | "hold";
 
 // ponytail: Guitar Hero-ish window; widen if real players find "Perfect" too strict.
-export const TIMING = { perfect: 0.08 };
+export const TIMING = { perfect: 0.1 };
 
-/** null = nothing to judge. hold = right chord still ringing with no new strum near the beat (strumming once per bar is fine). */
-export function judge(verdict: "hit" | "miss" | "uncertain", timing: number | null): Judgment | null {
-  if (verdict === "uncertain" && timing === null) return null; // a chord fading out, not something played
+/** Every chord gets one. hold ("Good") = right chord, but its strum couldn't be timed. */
+export function judge(verdict: "hit" | "miss" | "uncertain", timing: number | null): Judgment {
   if (verdict !== "hit") return "not-quite";
   if (timing === null) return "hold";
   if (Math.abs(timing) <= TIMING.perfect) return "perfect";
@@ -72,5 +71,5 @@ export function judge(verdict: "hit" | "miss" | "uncertain", timing: number | nu
 }
 
 export const JUDGMENT_LABEL: Record<Judgment, string> = {
-  perfect: "Perfect", early: "Early", late: "Late", "not-quite": "Not Quite", hold: "",
+  perfect: "Perfect", early: "Early", late: "Late", "not-quite": "Not Quite", hold: "Good",
 };

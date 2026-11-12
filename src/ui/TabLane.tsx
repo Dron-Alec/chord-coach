@@ -162,7 +162,6 @@ function draw(g: CanvasRenderingContext2D, w: number, lane: Lane | null) {
   const t = performance.now();
   let latest: BeatResult | null = null, latestAt = 0;
   for (const res of history.values()) {
-    if (res.judgment === "hold") continue;
     if (!firstSeen.has(res)) firstSeen.set(res, t);
     const at = firstSeen.get(res)!;
     if (at >= latestAt) [latest, latestAt] = [res, at];
