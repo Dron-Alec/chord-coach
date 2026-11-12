@@ -59,7 +59,7 @@ export class Metronome {
     src.buffer = this.noise;
     const filter = this.ctx.createBiquadFilter();
     filter.type = "bandpass";
-    filter.frequency.value = accent ? 4500 : 6500; // well above the guitar band the detectors use
+    filter.frequency.value = accent ? 7000 : 9000; // far above the band the detectors use (<= 1.5 kHz)
     filter.Q.value = 1;
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(this.volume * (accent ? 2.5 : 1.8), time);

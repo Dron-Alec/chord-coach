@@ -1,5 +1,5 @@
 /** In-place radix-2 FFT; returns magnitudes of the first n/2 bins. n must be a power of 2. */
-function fftMag(re: Float64Array): Float64Array {
+export function fftMag(re: Float64Array): Float64Array {
   const n = re.length;
   const im = new Float64Array(n);
   for (let i = 1, j = 0; i < n; i++) {

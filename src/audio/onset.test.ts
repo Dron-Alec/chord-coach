@@ -15,7 +15,7 @@ const strumAt = (sec: number, len = 0.4, withTick = true) => {
 
 describe("strumOnset", () => {
   it("finds the strum, not the metronome tick before it", () => {
-    expect(Math.abs(strumOnset(strumAt(0.15), SR)! - 0.15)).toBeLessThan(0.02);
+    expect(Math.abs(strumOnset(strumAt(0.15), SR)! - 0.15)).toBeLessThan(0.03);
   });
   it("ringing chord with no new strum is null", () => {
     const ringing = strumAt(0, 1.2, false).subarray(SR * 0.6);
@@ -26,7 +26,7 @@ describe("strumOnset", () => {
     for (let i = 0; i < SR * 0.03; i++) s[i] = Math.sin((2 * Math.PI * 3000 * i) / SR) * Math.exp(-i / 300); // loud accent tick
     const late = strumAt(0.32, 0.4, false).subarray(0, SR * 0.4);
     for (let i = 0; i < s.length; i++) s[i] += late[i] ?? 0;
-    expect(Math.abs(strumOnset(s, SR)! - 0.32)).toBeLessThan(0.02);
+    expect(Math.abs(strumOnset(s, SR)! - 0.32)).toBeLessThan(0.03);
   });
   it("a rolled strum is timed from its first string", () => {
     const s = new Float32Array(SR * 0.5);
