@@ -78,3 +78,11 @@ it("basicPitch detector tells C from Am", async () => {
   expect(scoreBeat(ch, "C", bpRefs).verdict).toBe("hit");
   expect(scoreBeat(ch, "Am", bpRefs).verdict).toBe("miss");
 }, 60000);
+
+it("a single low D string (with its overtones) is not a D chord", () => {
+  const sr = 48000, out = new Float32Array(sr * 0.4);
+  for (let h = 1; h <= 8; h++) for (let i = 0; i < out.length; i++) out[i] += (0.2 / h) * Math.sin((2 * Math.PI * 146.8 * h * i) / sr);
+  const ch = chromaFromSamples(out, sr);
+  const refs = { D: [0, 0, 1, 0, 0, 0, 0.8, 0, 0, 0.9, 0, 0], G: [0, 0, 0.8, 0, 0, 0, 0, 1, 0, 0, 0, 0.8] };
+  expect(scoreBeat(ch, "D", refs).verdict).not.toBe("hit");
+});

@@ -7,6 +7,7 @@ export type References = Record<string, number[]>;
 
 /** Tuned with `npm run eval`; the numbers are in the README. */
 export const SCORING = {
+  coverage: 0.25, // a chord tone counts as played at this share of the loudest pitch class
   compress: 0.5, // chroma ** compress before comparing, so the loudest strings don't drown the third
   tie: 0.7, // confidence when the expected chord exactly ties the best other chord
   gain: 1.4, // confidence gained per unit of similarity margin over the best other chord
@@ -57,6 +58,11 @@ export function scoreBeat(chroma: number[], expected: string, refs: References, 
   let rival = 0;
   for (const name in refs) if (!sameChord(chordPitchClasses(name), pcs)) rival = Math.max(rival, similarity(chroma, refs[name]));
   const ratio = Math.min(1, Math.max(0, SCORING.tie + SCORING.gain * (own - rival)));
-  const verdict: Verdict = Math.max(own, rival) < SCORING.minMatch || ratio < floor ? "miss" : ratio >= threshold ? "hit" : "uncertain";
+  let verdict: Verdict = Math.max(own, rival) < SCORING.minMatch || ratio < floor ? "miss" : ratio >= threshold ? "hit" : "uncertain";
+  // One string's overtones mimic a major chord (D rings A and F#), so a hit needs nearly every chord
+  // tone clearly present: all but one for 4+ note chords.
+  const max = Math.max(...chroma);
+  const present = [...pcs].filter((pc) => chroma[pc] >= SCORING.coverage * max).length;
+  if (verdict === "hit" && present < (pcs.size >= 4 ? pcs.size - 1 : pcs.size)) verdict = "miss";
   return { verdict, ratio };
 }
