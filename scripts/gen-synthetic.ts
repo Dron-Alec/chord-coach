@@ -1,17 +1,20 @@
-// Generates the synthetic eval set in takes/synthetic/: Karplus-Strong guitar strums with real
-// voicings, in the same WAV + JSON label format the app's "Record take" button writes.
+// Generates the synthetic eval sets: guitar strums with real voicings, in the same WAV + JSON label
+// format the app's "Record take" button writes. takes/synthetic/ is Karplus-Strong strings (a timbre
+// the scoring references have never seen); takes/synthetic-sampled/ uses the app's own guitar
+// samples, the same ones the references are made from, so it flatters the scorer.
 // Deterministic (seeded), so re-running reproduces the committed files: npm run gen-synthetic
+import "./public-fetch";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { loadGuitar, renderNotes } from "../src/audio/guitar";
 import { encodeWav } from "../src/audio/wav";
 import { parseChart } from "../src/music/chart";
 
-const SR = 24000;
 const OPEN = [40, 45, 50, 55, 59, 64]; // E2 A2 D3 G3 B3 E4
 // Frets, low E to high e; x = not played.
 const VOICING: Record<string, string> = {
   C: "x32010", A: "x02220", G: "320003", E: "022100", D: "xx0232", F: "133211",
   Am: "x02210", Em: "022000", Dm: "xx0231", Bm: "x24432", "F#m": "244222", Bb: "x13331",
-  G7: "320001", C7: "x32310", D7: "xx0212", E7: "020100", A7: "x02020",
+  G7: "320001", C7: "x32310", D7: "xx0212", E7: "020100", A7: "x02020", Em7: "022030",
   Am7: "x02010", Dm7: "xx0211", Cmaj7: "x32000", Fmaj7: "xx3210",
   Dsus4: "xx0233", Dsus2: "xx0230", Asus4: "x02230", Asus2: "x02200",
 };
@@ -23,6 +26,7 @@ type Take = {
   bpm: number;
   level?: number; // peak amplitude, default 0.5
   strum?: "down" | "eighths" | "half"; // per beat / down-up eighths / beats 1 and 3 only
+  sampled?: boolean; // real guitar samples instead of Karplus-Strong
 };
 
 const TAKES: Take[] = [
@@ -36,6 +40,11 @@ const TAKES: Take[] = [
   { name: "ringing", chart: "G | D | Em | C", bpm: 96, strum: "half" },
   { name: "wrong-relatives", chart: "Am | Dm | Em | C", played: "Am C | Dm F | Em G | C Am", bpm: 108 },
   { name: "wrong-neighbours", chart: "C | G | D | A", played: "C F | G C | D G | A E", bpm: 112 },
+  { name: "basic", chart: "Am | F | C | G", bpm: 104, sampled: true },
+  { name: "sus-sevenths", chart: "D Dsus4 | A7 Asus2 | Em7 E7 | Cmaj7 G7", bpm: 108, sampled: true },
+  { name: "barre-quiet", chart: "Bm | F#m | Bb | F", bpm: 112, level: 0.08, sampled: true },
+  { name: "wrong-relatives", chart: "Am | Dm | Em | C", played: "Am C | Dm F | Em G | C Am", bpm: 108, sampled: true },
+  { name: "wrong-neighbours", chart: "C | G | D | A", played: "C F | G C | D G | A E", bpm: 116, sampled: true },
 ];
 
 function mulberry32(seed: number) {
@@ -48,7 +57,7 @@ function mulberry32(seed: number) {
 }
 
 /** One Karplus-Strong string: delay line + averaging low-pass + allpass for fractional tuning. */
-function makeString() {
+function makeString(SR: number) {
   const buf = new Float32Array(SR / 60);
   let len = 1, pos = 0, last = 0, apIn = 0, apOut = 0, apC = 0, loss = 0, damp = 1;
   return {
@@ -84,6 +93,7 @@ function makeString() {
 }
 
 function render(take: Take, seed: number) {
+  const SR = take.sampled ? 16000 : 24000;
   const rand = mulberry32(seed);
   const chart = parseChart(take.chart), played = parseChart(take.played ?? take.chart);
   const spb = 60 / take.bpm, lead = 0.4;
@@ -115,18 +125,28 @@ function render(take: Take, seed: number) {
   });
   events.sort((a, b) => a[0] - b[0]);
 
-  const strings = OPEN.map(makeString);
   const out = new Float32Array(n);
-  let e = 0, rumble = 0, peak = 0;
-  for (let i = 0; i < n; i++) {
-    for (; e < events.length && events[e][0] <= i; e++) {
-      const [, s, hz, vel] = events[e];
-      if (hz) strings[s].pluck(hz, vel, rand);
-      else strings[s].mute();
+  let rumble = 0, peak = 0;
+  if (take.sampled) {
+    // Each pluck is one sampled note; it rings until the same string is plucked or muted again.
+    events.forEach(([at, s, hz, vel], k) => {
+      if (!hz) return;
+      const next = events.find((ev, j) => j > k && ev[1] === s)?.[0] ?? n;
+      const note = renderNotes([69 + 12 * Math.log2(hz / 440)], SR, (next - at) / SR + 0.03);
+      for (let j = 0; j < note.length && at + j < n; j++) out[at + j] += note[j] * vel * Math.min(1, (note.length - j) / (0.03 * SR));
+    });
+  } else {
+    const strings = OPEN.map(() => makeString(SR));
+    for (let i = 0, e = 0; i < n; i++) {
+      for (; e < events.length && events[e][0] <= i; e++) {
+        const [, s, hz, vel] = events[e];
+        if (hz) strings[s].pluck(hz, vel, rand);
+        else strings[s].mute();
+      }
+      for (const s of strings) out[i] += s.next();
     }
-    for (const s of strings) out[i] += s.next();
-    peak = Math.max(peak, Math.abs(out[i]));
   }
+  for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(out[i]));
   const level = take.level ?? 0.5;
   for (let i = 0; i < n; i++) {
     // Room noise at a fixed absolute level: white hiss plus low-frequency rumble.
@@ -137,11 +157,12 @@ function render(take: Take, seed: number) {
   return { wav: encodeWav(out, SR), label };
 }
 
-const dir = new URL("../takes/synthetic/", import.meta.url);
-mkdirSync(dir, { recursive: true });
+await loadGuitar();
 TAKES.forEach((take, i) => {
+  const dir = `takes/synthetic${take.sampled ? "-sampled" : ""}`;
+  mkdirSync(dir, { recursive: true });
   const { wav, label } = render(take, i + 1);
-  writeFileSync(new URL(`${take.name}.wav`, dir), new Uint8Array(wav));
-  writeFileSync(new URL(`${take.name}.json`, dir), JSON.stringify(label, null, 2) + "\n");
+  writeFileSync(`${dir}/${take.name}.wav`, new Uint8Array(wav));
+  writeFileSync(`${dir}/${take.name}.json`, JSON.stringify(label, null, 2) + "\n");
 });
-console.log(`Wrote ${TAKES.length} takes to takes/synthetic/`);
+console.log(`Wrote ${TAKES.length} takes to takes/synthetic/ and takes/synthetic-sampled/`);

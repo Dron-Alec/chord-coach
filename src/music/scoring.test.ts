@@ -1,10 +1,15 @@
-import { expect, it } from "vitest";
-import { basicPitchChroma, resample } from "../audio/basicPitch";
+import "../../scripts/public-fetch";
+import { beforeAll, expect, it } from "vitest";
 import { chromaFromSamples } from "../audio/chroma";
+import { loadGuitar, renderChord } from "../audio/guitar";
+import { resample } from "../audio/resample";
+import { detectors } from "../engine/detectors";
+import { chordReferences } from "../engine/references";
 import { chordPitchClasses } from "./chords";
-import { sameChord, scoreBeat } from "./scoring";
+import { candidateChords, sameChord, scoreBeat, type References } from "./scoring";
 
 const hz = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
+// Not the sampled guitar: plain decaying harmonics, so the references are tested on a foreign timbre.
 const tone = (midis: number[], sr = 48000, sec = 0.4) => {
   const out = new Float32Array(sr * sec);
   for (const m of midis)
@@ -12,7 +17,13 @@ const tone = (midis: number[], sr = 48000, sec = 0.4) => {
       for (let i = 0; i < out.length; i++) out[i] += (0.1 / h) * Math.sin((2 * Math.PI * hz(m) * h * i) / sr);
   return out;
 };
-const verdict = (midis: number[], chord: string) => scoreBeat(chromaFromSamples(tone(midis), 48000), chordPitchClasses(chord)).verdict;
+const AM = [45, 52, 57, 60, 64], C = [48, 52, 55, 60, 64]; // open Am and C voicings
+
+let refs: References;
+beforeAll(async () => {
+  refs = await chordReferences("chroma", candidateChords(["Am", "C", "Cadd9"]));
+});
+const verdict = (midis: number[], chord: string) => scoreBeat(chromaFromSamples(tone(midis), 48000), chord, refs).verdict;
 
 it("sameChord: subsets are the same chord, relatives are not", () => {
   const same = (a: string, b: string) => sameChord(chordPitchClasses(a), chordPitchClasses(b));
@@ -23,17 +34,35 @@ it("sameChord: subsets are the same chord, relatives are not", () => {
   expect(same("C", "Cm")).toBe(false);
 });
 
-it("tells relative chords apart", () => {
-  const am = [45, 52, 57, 60, 64], c = [48, 52, 55, 60, 64]; // open Am and C voicings
-  expect(verdict(am, "Am")).toBe("hit");
-  expect(verdict(am, "C")).not.toBe("hit");
-  expect(verdict(c, "C")).toBe("hit");
-  expect(verdict(c, "Am")).not.toBe("hit");
-  expect(verdict(c, "Cadd9")).toBe("hit"); // played a subset of what was asked
+it("candidateChords: the chart, all majors and minors, variations on the chart's roots", () => {
+  const c = candidateChords(["Am", "D/F#"]);
+  for (const name of ["Am", "D/F#", "C", "F#m", "A", "Asus2", "A7", "Dsus4", "Dmaj7"]) expect(c).toContain(name);
+  expect(c).not.toContain("Csus4");
+  expect(new Set(c).size).toBe(c.length);
 });
 
-it("a single note is not a chord", () => {
-  expect(verdict([45], "Am")).toBe("uncertain");
+it("the sampled guitar plays the chord's notes", async () => {
+  await loadGuitar();
+  const audio = renderChord("G", 22050, 0.5);
+  expect(audio.length).toBe(11025);
+  expect(Math.max(...audio.map(Math.abs))).toBeCloseTo(0.5);
+  const ch = chromaFromSamples(audio, 22050);
+  const top3 = ch.map((v, i) => [v, i]).sort((a, b) => b[0] - a[0]).slice(0, 3).map((x) => x[1]).sort((a, b) => a - b);
+  expect(top3).toEqual([2, 7, 11]);
+});
+
+it("tells relative chords apart", () => {
+  expect(verdict(AM, "Am")).toBe("hit");
+  expect(verdict(AM, "C")).toBe("miss");
+  expect(verdict(C, "C")).toBe("hit");
+  expect(verdict(C, "Am")).toBe("miss");
+  expect(verdict(C, "Cadd9")).toBe("hit"); // played a subset of what was asked
+  expect(verdict(C, "F#")).toBe("miss");
+});
+
+it("silence and chords without a reference are uncertain", () => {
+  expect(scoreBeat(chromaFromSamples(new Float32Array(4800), 48000), "C", refs).verdict).toBe("uncertain");
+  expect(scoreBeat(chromaFromSamples(tone(C), 48000), "C", {}).verdict).toBe("uncertain");
 });
 
 it("resample keeps pitch and duration", () => {
@@ -43,17 +72,9 @@ it("resample keeps pitch and duration", () => {
   expect(ch.indexOf(Math.max(...ch))).toBe(9);
 });
 
-it("basicPitch detector hears C major", async () => {
-  // Node has no page to fetch the model relative to; read it from public/ instead.
-  const { readFileSync } = await import("node:fs");
-  const webFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) =>
-    typeof url === "string" && !/^\w+:/.test(url) ? new Response(readFileSync(`public/${url}`)) : webFetch(url, init);
-  try {
-    const ch = await basicPitchChroma(tone([48, 52, 55, 60]), 48000);
-    expect(scoreBeat(ch, chordPitchClasses("C")).verdict).toBe("hit");
-    expect(scoreBeat(ch, chordPitchClasses("Am")).verdict).not.toBe("hit");
-  } finally {
-    globalThis.fetch = webFetch;
-  }
-}, 30000);
+it("basicPitch detector tells C from Am", async () => {
+  const bpRefs = await chordReferences("basicPitch", ["C", "Am", "F", "G"]);
+  const ch = await detectors.basicPitch(tone(C), 48000);
+  expect(scoreBeat(ch, "C", bpRefs).verdict).toBe("hit");
+  expect(scoreBeat(ch, "Am", bpRefs).verdict).toBe("miss");
+}, 60000);

@@ -1,14 +1,16 @@
-import { QUALITY } from "./chords";
+import { chordPitchClasses, parseChordName } from "./chords";
 
 export type Verdict = "hit" | "miss" | "uncertain";
 
+/** Chord name -> what that chord sounds like to the detector in use (see engine/references.ts). */
+export type References = Record<string, number[]>;
+
 /** Tuned with `npm run eval`; the numbers are in the README. */
 export const SCORING = {
-  compress: 0.5, // chroma ** compress before matching, so the loudest strings don't drown the third
-  overtone: 0.4, // templates expect this much of each chord tone a fifth up (3rd harmonic), and its square a major third up (5th)
+  compress: 0.5, // chroma ** compress before comparing, so the loudest strings don't drown the third
   tie: 0.7, // confidence when the expected chord exactly ties the best other chord
-  gain: 2.2, // confidence gained per unit of match margin over the best other chord
-  minMatch: 0.6, // if no chord at all matches this well, it wasn't a chord: uncertain
+  gain: 1.4, // confidence gained per unit of similarity margin over the best other chord
+  minMatch: 0.4, // if no candidate is this similar, what was played is not a chord we know: miss
 };
 
 /** Chords count as the same when one's notes are a subset of the other's (C vs Cadd9, C vs C/E). */
@@ -17,41 +19,44 @@ export function sameChord(a: Set<number>, b: Set<number>): boolean {
   return [...small].every((pc) => big.has(pc));
 }
 
-const ALL_CHORDS = Object.values(QUALITY).flatMap((intervals) =>
-  Array.from({ length: 12 }, (_, root) => new Set(intervals.map((i) => (root + i) % 12))),
-);
+const COMMON = ["", "m", "7", "m7", "maj7", "sus2", "sus4"];
+const ROOTS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
 
-/** Cosine similarity between the chroma and the chord's template. */
-function match(chroma: number[], chord: Set<number>): number {
-  const t = new Array(12).fill(0);
-  for (const pc of chord) {
-    t[pc] += 1;
-    t[(pc + 7) % 12] += SCORING.overtone;
-    t[(pc + 4) % 12] += SCORING.overtone ** 2;
+/** The chords a beat is ranked against: the chart's own, every major and minor, and the common variations on the chart's roots. */
+export function candidateChords(chartChords: string[]): string[] {
+  const roots = new Set(chartChords.map((c) => parseChordName(c).root));
+  return [...new Set([...chartChords, ...ROOTS.flatMap((r) => [r, `${r}m`]), ...[...roots].flatMap((r) => COMMON.map((q) => r + q))])];
+}
+
+/** Correlation of the two compressed chromas (cosine after removing each one's mean, which is what all chords share). */
+function similarity(a: number[], b: number[]): number {
+  const center = (v: number[]) => {
+    const c = v.map((x) => x ** SCORING.compress), mean = c.reduce((s, x) => s + x, 0) / c.length;
+    return c.map((x) => x - mean);
+  };
+  const x = center(a), y = center(b);
+  let dot = 0, xx = 0, yy = 0;
+  for (let i = 0; i < x.length; i++) {
+    dot += x[i] * y[i];
+    xx += x[i] * x[i];
+    yy += y[i] * y[i];
   }
-  let dot = 0, tt = 0, cc = 0;
-  for (let i = 0; i < 12; i++) {
-    dot += chroma[i] * t[i];
-    tt += t[i] * t[i];
-    cc += chroma[i] * chroma[i];
-  }
-  return dot / Math.sqrt(tt * cc);
+  return xx && yy ? dot / Math.sqrt(xx * yy) : 0;
 }
 
 /**
- * Is the expected chord the best explanation of the chroma, or close to it? Compares its template
- * match against every other chord in the vocabulary (all roots), ignoring chords that are the same
- * as the expected one by `sameChord`. `ratio` is a 0..1 confidence: `tie` when level with the best
- * other chord, higher when ahead. hit at >= threshold, miss below floor.
+ * Does the beat sound like the expected chord's reference, more than like any other candidate's?
+ * `refs` holds the reference for the expected chord and for every candidate to rank it against;
+ * candidates that are the same chord by `sameChord` don't compete. `ratio` is a 0..1 confidence:
+ * `tie` when level with the best other chord, higher when ahead. hit at >= threshold, miss below floor.
  */
-export function scoreBeat(chroma: number[], expected: Set<number>, threshold = 0.6, floor = 0.4) {
-  if (!chroma.some((v) => v > 0)) return { verdict: "uncertain" as Verdict, ratio: 0 };
-  const c = chroma.map((v) => v ** SCORING.compress);
-  const own = match(c, expected);
+export function scoreBeat(chroma: number[], expected: string, refs: References, { threshold = 0.6, floor = 0.4 } = {}) {
+  if (!refs[expected] || !chroma.some((v) => v > 0)) return { verdict: "uncertain" as Verdict, ratio: 0 };
+  const own = similarity(chroma, refs[expected]);
+  const pcs = chordPitchClasses(expected);
   let rival = 0;
-  for (const other of ALL_CHORDS) if (!sameChord(other, expected)) rival = Math.max(rival, match(c, other));
+  for (const name in refs) if (!sameChord(chordPitchClasses(name), pcs)) rival = Math.max(rival, similarity(chroma, refs[name]));
   const ratio = Math.min(1, Math.max(0, SCORING.tie + SCORING.gain * (own - rival)));
-  const verdict: Verdict =
-    Math.max(own, rival) < SCORING.minMatch ? "uncertain" : ratio >= threshold ? "hit" : ratio < floor ? "miss" : "uncertain";
+  const verdict: Verdict = Math.max(own, rival) < SCORING.minMatch || ratio < floor ? "miss" : ratio >= threshold ? "hit" : "uncertain";
   return { verdict, ratio };
 }

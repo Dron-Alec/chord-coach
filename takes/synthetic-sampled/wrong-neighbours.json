@@ -1,0 +1,97 @@
+{
+  "sampleRate": 16000,
+  "bpm": 116,
+  "beatsPerBar": 4,
+  "chart": "C | G | D | A",
+  "offsetSec": 0.0514,
+  "beats": [
+    {
+      "index": 0,
+      "time": 0.4,
+      "chord": "C"
+    },
+    {
+      "index": 1,
+      "time": 0.9172,
+      "chord": "C"
+    },
+    {
+      "index": 2,
+      "time": 1.4345,
+      "chord": "C",
+      "played": "F"
+    },
+    {
+      "index": 3,
+      "time": 1.9517,
+      "chord": "C",
+      "played": "F"
+    },
+    {
+      "index": 4,
+      "time": 2.469,
+      "chord": "G"
+    },
+    {
+      "index": 5,
+      "time": 2.9862,
+      "chord": "G"
+    },
+    {
+      "index": 6,
+      "time": 3.5034,
+      "chord": "G",
+      "played": "C"
+    },
+    {
+      "index": 7,
+      "time": 4.0207,
+      "chord": "G",
+      "played": "C"
+    },
+    {
+      "index": 8,
+      "time": 4.5379,
+      "chord": "D"
+    },
+    {
+      "index": 9,
+      "time": 5.0552,
+      "chord": "D"
+    },
+    {
+      "index": 10,
+      "time": 5.5724,
+      "chord": "D",
+      "played": "G"
+    },
+    {
+      "index": 11,
+      "time": 6.0897,
+      "chord": "D",
+      "played": "G"
+    },
+    {
+      "index": 12,
+      "time": 6.6069,
+      "chord": "A"
+    },
+    {
+      "index": 13,
+      "time": 7.1241,
+      "chord": "A"
+    },
+    {
+      "index": 14,
+      "time": 7.6414,
+      "chord": "A",
+      "played": "E"
+    },
+    {
+      "index": 15,
+      "time": 8.1586,
+      "chord": "A",
+      "played": "E"
+    }
+  ]
+}

@@ -1,11 +1,13 @@
-// Offline accuracy check: every takes/**.wav + .json through each registered detector, using the
+// Offline accuracy check: every take (.wav + .json) in takes/ and its synthetic subfolders through each registered detector, using the
 // same beat windowing and scoreBeat as the live session. npm run eval [detector...]
+import "./public-fetch";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { decodeWav } from "../src/audio/wav";
 import { detectors, type DetectorName } from "../src/engine/detectors";
+import { chordReferences } from "../src/engine/references";
 import { beatWindow } from "../src/engine/window";
 import { chordPitchClasses } from "../src/music/chords";
-import { sameChord, scoreBeat } from "../src/music/scoring";
+import { candidateChords, sameChord, scoreBeat } from "../src/music/scoring";
 
 type Label = {
   sampleRate: number;
@@ -13,11 +15,6 @@ type Label = {
   offsetSec: number;
   beats: { index: number; time: number; chord: string; played?: string }[];
 };
-
-// The detectors fetch model files relative to the page; serve those from public/ here.
-const webFetch = globalThis.fetch;
-globalThis.fetch = async (url, init) =>
-  typeof url === "string" && !/^\w+:/.test(url) ? new Response(readFileSync(`public/${url}`)) : webFetch(url, init);
 
 const pct = (n: number, of: number) => (of ? `${((100 * n) / of).toFixed(1)}%`.padStart(6) + ` (${n}/${of})` : "   n/a");
 
@@ -33,6 +30,7 @@ async function evalDir(dir: string, names: DetectorName[]) {
   console.log(`${takes.length} takes, ${nBeats} beats, ${vocabulary.length} distinct chords`);
 
   for (const name of names) {
+    const refs = await chordReferences(name, candidateChords(vocabulary));
     const right = { hit: 0, uncertain: 0, miss: 0 }, wrong = { hit: 0, uncertain: 0, miss: 0 };
     const confusions = new Map<string, number>(); // "played -> accepted as"
     let crossHits = 0, crossTotal = 0, ms = 0, windows = 0;
@@ -46,14 +44,13 @@ async function evalDir(dir: string, names: DetectorName[]) {
         if (windows++) ms += performance.now() - t0; // first window excluded: it pays for model loading
 
         const played = beat.played ?? beat.chord, playedPcs = chordPitchClasses(played);
-        const { verdict } = scoreBeat(chroma, chordPitchClasses(beat.chord));
+        const { verdict } = scoreBeat(chroma, beat.chord, refs);
         (sameChord(playedPcs, chordPitchClasses(beat.chord)) ? right : wrong)[verdict]++;
         // Every other chord in the set, had the chart asked for it on this beat.
         for (const other of vocabulary) {
-          const pcs = chordPitchClasses(other);
-          if (sameChord(playedPcs, pcs)) continue;
+          if (sameChord(playedPcs, chordPitchClasses(other))) continue;
           crossTotal++;
-          if (scoreBeat(chroma, pcs).verdict !== "hit") continue;
+          if (scoreBeat(chroma, other, refs).verdict !== "hit") continue;
           crossHits++;
           confusions.set(`${played}->${other}`, (confusions.get(`${played}->${other}`) ?? 0) + 1);
         }
@@ -76,5 +73,8 @@ console.log("== Real takes (takes/*.wav): the metric that counts ==");
 if (existsSync("takes") && readdirSync("takes").some((f) => f.endsWith(".wav"))) await evalDir("takes", names);
 else console.log("none yet. Record some with the app's Record take button and put the .wav + .json in takes/.");
 
-console.log("\n== Synthetic takes (takes/synthetic): sanity check only, do not tune to these alone ==");
+console.log("\n== Synthetic takes, Karplus-Strong strings (takes/synthetic): sanity check only, do not tune to these alone ==");
 await evalDir("takes/synthetic", names);
+
+console.log("\n== Synthetic takes, the app's own guitar samples (takes/synthetic-sampled): same sounds as the references, so optimistic ==");
+await evalDir("takes/synthetic-sampled", names);

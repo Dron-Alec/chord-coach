@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { chordPitchClasses, QUALITY } from "./chords";
 import { parseChart } from "./chart";
-import { scoreBeat } from "./scoring";
 import { chromaFromSamples, onsetTime } from "../audio/chroma";
 
 const pcs = (name: string) => [...chordPitchClasses(name)].sort((a, b) => a - b);
@@ -49,24 +48,13 @@ const tone = (freqs: number[], sr = 48000, sec = 0.4) => {
   return out;
 };
 
-describe("chroma + scoring", () => {
+describe("chroma", () => {
   const cMajor = tone([130.81, 164.81, 196.0, 261.63]); // C3 E3 G3 C4
 
   it("C major lands on C, E, G", () => {
     const ch = chromaFromSamples(cMajor, 48000);
     const top3 = ch.map((v, i) => [v, i]).sort((a, b) => b[0] - a[0]).slice(0, 3).map((x) => x[1]).sort((a, b) => a - b);
     expect(top3).toEqual([0, 4, 7]);
-  });
-
-  it("scores hit for right chord, miss for wrong one", () => {
-    const ch = chromaFromSamples(cMajor, 48000);
-    expect(scoreBeat(ch, chordPitchClasses("C")).verdict).toBe("hit");
-    expect(scoreBeat(ch, chordPitchClasses("F#")).verdict).toBe("miss");
-  });
-
-  it("silence is uncertain", () => {
-    const ch = chromaFromSamples(new Float32Array(4800), 48000);
-    expect(scoreBeat(ch, chordPitchClasses("C")).verdict).toBe("uncertain");
   });
 });
 

@@ -1,0 +1,89 @@
+{
+  "sampleRate": 16000,
+  "bpm": 108,
+  "beatsPerBar": 4,
+  "chart": "D Dsus4 | A7 Asus2 | Em7 E7 | Cmaj7 G7",
+  "offsetSec": 0.0559,
+  "beats": [
+    {
+      "index": 0,
+      "time": 0.4,
+      "chord": "D"
+    },
+    {
+      "index": 1,
+      "time": 0.9556,
+      "chord": "D"
+    },
+    {
+      "index": 2,
+      "time": 1.5111,
+      "chord": "Dsus4"
+    },
+    {
+      "index": 3,
+      "time": 2.0667,
+      "chord": "Dsus4"
+    },
+    {
+      "index": 4,
+      "time": 2.6222,
+      "chord": "A7"
+    },
+    {
+      "index": 5,
+      "time": 3.1778,
+      "chord": "A7"
+    },
+    {
+      "index": 6,
+      "time": 3.7333,
+      "chord": "Asus2"
+    },
+    {
+      "index": 7,
+      "time": 4.2889,
+      "chord": "Asus2"
+    },
+    {
+      "index": 8,
+      "time": 4.8444,
+      "chord": "Em7"
+    },
+    {
+      "index": 9,
+      "time": 5.4,
+      "chord": "Em7"
+    },
+    {
+      "index": 10,
+      "time": 5.9556,
+      "chord": "E7"
+    },
+    {
+      "index": 11,
+      "time": 6.5111,
+      "chord": "E7"
+    },
+    {
+      "index": 12,
+      "time": 7.0667,
+      "chord": "Cmaj7"
+    },
+    {
+      "index": 13,
+      "time": 7.6222,
+      "chord": "Cmaj7"
+    },
+    {
+      "index": 14,
+      "time": 8.1778,
+      "chord": "G7"
+    },
+    {
+      "index": 15,
+      "time": 8.7333,
+      "chord": "G7"
+    }
+  ]
+}
