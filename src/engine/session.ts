@@ -7,10 +7,8 @@ import { chordPitchClasses } from "../music/chords";
 import { scoreBeat, type Verdict } from "../music/scoring";
 import { createStore } from "./store";
 import { detectors, type DetectorName } from "./detectors";
+import { beatWindow } from "./window";
 
-// Audio scored for a beat, in beats relative to the beat's real time.
-// ponytail: fixed window, tune via eval (npm run eval) if strums get clipped.
-export const WINDOW = { before: 1 / 8, after: 1 / 2 };
 const KEEP_SECONDS = 6;
 
 export type BeatResult = { verdict: Verdict; ratio: number; chord: string };
@@ -204,12 +202,13 @@ class Session {
           this.reportCalibration();
           continue;
         }
-        if (real + WINDOW.after * spb > this.latestTime()) break;
+        const [winStart, winEnd] = beatWindow(real, spb);
+        if (winEnd > this.latestTime()) break;
         this.pending.shift();
         const chart = s.chart!;
         const i = beat % chart.beats.length;
         const chord = chart.beats[i];
-        const audio = this.extract(real - WINDOW.before * spb, real + WINDOW.after * spb);
+        const audio = this.extract(winStart, winEnd);
         const chroma = await detectors[s.detector](audio, this.ctx!.sampleRate);
         const { verdict, ratio } = scoreBeat(chroma, chordPitchClasses(chord), s.threshold);
         const cur = store.get();
