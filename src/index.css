@@ -26,17 +26,34 @@ button { font: inherit; padding: 10px 18px; border-radius: 8px; border: 1px soli
 button.primary { background: var(--accent); color: #fff; border-color: transparent; font-weight: 600; min-width: 96px; }
 button.rec { color: var(--miss); border-color: var(--miss); }
 
-.chart { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-.bar { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 12px 10px; transition: border-color 0.08s; }
-.bar.active { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
-.chords { display: flex; justify-content: space-around; font-size: 1.6rem; font-weight: 700; min-height: 2.2rem; }
-.beats { display: flex; justify-content: space-around; margin-top: 10px; }
-.dot { width: 14px; height: 14px; border-radius: 50%; background: var(--line); outline-offset: 2px; }
-.dot.now { outline: 2px solid var(--accent); }
-.dot.hit { background: var(--hit); } .dot.miss { background: var(--miss); } .dot.uncertain { background: var(--unsure); }
-.stats { margin: 10px 0 0; color: var(--muted); } .stats b { color: var(--fg); font-size: 1.2rem; }
+.transport { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; }
+.transport label { display: grid; gap: 4px; font-size: 0.8rem; color: var(--muted); }
+.transport input { width: 80px; }
+button.big { font-size: 1.15rem; padding: 12px 28px; min-width: 140px; }
+button.stop { background: var(--miss); }
+.hint { font-size: 0.8rem; align-self: center; }
+.stats { margin-left: auto; color: var(--muted); align-self: center; } .stats b { color: var(--fg); font-size: 1.3rem; }
 
-.chroma { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; height: 140px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.lane { display: block; width: 100%; border: 1px solid var(--line); border-radius: 12px; }
+
+.progression { display: grid; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 40px; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px 4px 4px; background: var(--bg); }
+.chip button { padding: 4px 8px; border: none; background: none; }
+.chip .name { font-weight: 700; font-size: 1.05rem; } .chip .name:hover { color: var(--accent); }
+.chip .x { color: var(--muted); padding: 2px 6px; }
+.dots { display: inline-flex; gap: 3px; }
+.dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.dots i.hit { background: var(--hit); } .dots i.miss { background: var(--miss); } .dots i.uncertain { background: var(--unsure); }
+.picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.picker button { padding: 6px 10px; min-width: 44px; }
+.picker button.on { background: var(--accent); color: #fff; border-color: transparent; }
+.picker button.add small { margin-left: 1px; font-size: 0.8em; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; } .row .grow { flex: 1; min-width: 180px; font-family: ui-monospace, monospace; }
+.settings summary { cursor: pointer; color: var(--muted); padding: 6px 0; }
+.settings .controls { margin-top: 8px; }
+
+.chroma { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; height: 110px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 .pc { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; font-size: 0.7rem; color: var(--muted); }
 .pc .fill { width: 100%; background: var(--muted); border-radius: 3px 3px 0 0; min-height: 2px; }
 .pc.expected .fill { background: var(--accent); } .pc.expected span { color: var(--accent); font-weight: 700; }

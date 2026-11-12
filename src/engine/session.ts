@@ -3,8 +3,9 @@ import { chromaFromSamples, onsetTime } from "../audio/chroma";
 import { closeMic, openMic, type Mic } from "../audio/mic";
 import { encodeWav } from "../audio/wav";
 import { parseChart, type Chart } from "../music/chart";
-import { chordPitchClasses } from "../music/chords";
-import { scoreBeat, type Verdict } from "../music/scoring";
+import { candidateChords, scoreBeat, type References, type Verdict } from "../music/scoring";
+import { loadGuitar, playChord } from "../audio/guitar";
+import { chordReferences } from "./references";
 import { createStore } from "./store";
 import { detectors, type DetectorName } from "./detectors";
 import { beatWindow } from "./window";
@@ -28,7 +29,7 @@ export type Snapshot = Settings & {
   mode: "idle" | "play" | "calibrate";
   error: string | null;
   chart: Chart | null;
-  beat: number; // beat currently heard, -1 before the first
+  beat: number | null; // chart beat currently heard (negative during the count-in), null when stopped
   results: (BeatResult | null)[]; // latest result per chart beat
   stats: Record<Verdict, number>;
   liveChroma: number[];
@@ -57,7 +58,7 @@ export const store = createStore<Snapshot>({
   mode: "idle",
   error: null,
   chart: null,
-  beat: -1,
+  beat: null,
   results: [],
   stats: { hit: 0, miss: 0, uncertain: 0 },
   liveChroma: new Array(12).fill(0),
@@ -66,6 +67,16 @@ export const store = createStore<Snapshot>({
 });
 
 type Chunk = { frame: number; samples: Float32Array };
+
+/** What the tab lane needs each animation frame; read directly, not through React. */
+export type Lane = {
+  chart: Chart;
+  now: number; // AudioContext time currently being heard
+  chartStart: number; // when chart beat 0 is heard
+  spb: number;
+  history: Map<number, BeatResult>; // absolute chart beat -> result
+  idle?: boolean;
+};
 
 class Session {
   private ctx: AudioContext | null = null;
@@ -79,10 +90,50 @@ class Session {
   private raf = 0;
   private lastPaint = 0;
   private defaultOffsetSet = false;
-  private startTime = 0; // scheduled time of beat 0 of the latest run
+  private startTime = 0; // scheduled time of the first click (count-in) of the latest run
+  private countIn = 0;
+  private history = new Map<number, BeatResult>();
+  private refs: References = {};
+
+  /** What each chart chord should sound like to the current detector (rendered from real guitar samples). */
+  private async loadRefs() {
+    const s = store.get();
+    const chart = parseChart(s.chartText, s.beatsPerBar);
+    store.set({ calibration: "Loading reference sounds…" });
+    this.refs = await chordReferences(s.detector, candidateChords(chart.beats));
+    store.set({ calibration: null });
+  }
+
+  /** Play a chord's reference strum so the player knows the target. */
+  async preview(name: string) {
+    try {
+      this.ctx ??= new AudioContext({ latencyHint: "interactive" });
+      await this.ctx.resume();
+      await loadGuitar(this.ctx);
+      playChord(this.ctx, name);
+    } catch (e) {
+      store.set({ error: `Can't play ${name}: ${(e as Error).message}` });
+    }
+  }
+
+  /** Lane timing; null when stopped. */
+  lane(): Lane | null {
+    const s = store.get();
+    if (!this.ctx || !this.metro || !s.chart || s.mode !== "play") return null;
+    const spb = this.metro.secondsPerBeat;
+    return {
+      chart: s.chart,
+      // The click scheduled at t is heard at t + outputLatency.
+      now: this.ctx.currentTime - (this.ctx.outputLatency || 0),
+      chartStart: this.startTime + this.countIn * spb,
+      spb,
+      history: this.history,
+    };
+  }
 
   update(patch: Partial<Settings>) {
-    store.set(patch);
+    // Old verdicts don't line up with an edited chart.
+    store.set("chartText" in patch || "beatsPerBar" in patch ? { ...patch, results: [] } : patch);
     const { chartText, bpm, beatsPerBar, offsetMs, threshold, detector, clickVolume } = store.get();
     try {
       localStorage.setItem("chord-coach", JSON.stringify({ chartText, bpm, beatsPerBar, offsetMs, threshold, detector, clickVolume }));
@@ -90,6 +141,14 @@ class Session {
       /* private mode */
     }
     if (this.metro) this.metro.volume = clickVolume; // bpm etc. are locked while running
+    // Basic Pitch's first call loads the model and compiles shaders (~10 s); do it before playing.
+    if (patch.detector === "basicPitch") void detectors.basicPitch(new Float32Array(2048), 22050);
+    if (patch.detector && store.get().mode === "play") void this.loadRefs();
+  }
+
+  toggle() {
+    if (store.get().running) this.stop();
+    else void this.start("play");
   }
 
   /** Must be called from a click handler: browsers block audio until a user gesture. */
@@ -114,16 +173,25 @@ class Session {
       this.update({ offsetMs: Math.round(((ctx.outputLatency || 0) + ctx.baseLatency + this.mic.inputLatency) * 1000) });
     }
     this.defaultOffsetSet = true;
+    if (mode === "play") {
+      try {
+        await this.loadRefs();
+      } catch (e) {
+        return store.set({ error: `Couldn't load reference sounds: ${(e as Error).message}`, calibration: null });
+      }
+    }
 
     this.stop();
     const metro = (this.metro = new Metronome(this.ctx, s.bpm, s.beatsPerBar, s.clickVolume));
     this.pending = [];
     this.calOffsets = [];
+    this.history = new Map();
+    this.countIn = mode === "play" ? s.beatsPerBar : 0;
     metro.onBeat = (beat, time) => this.pending.push({ beat, time });
     metro.start();
     this.startTime = metro.startTime;
     store.set({
-      running: true, mode, error: null, chart, beat: -1,
+      running: true, mode, error: null, chart, beat: -this.countIn,
       results: chart ? new Array(chart.beats.length).fill(null) : [],
       stats: { hit: 0, miss: 0, uncertain: 0 },
       calibration: mode === "calibrate" ? "Clap on each click…" : null,
@@ -135,7 +203,7 @@ class Session {
     this.metro?.stop();
     this.metro = null;
     cancelAnimationFrame(this.raf);
-    store.set({ running: false, mode: "idle", beat: -1 });
+    store.set({ running: false, mode: "idle", beat: null });
   }
 
   async shutdown() {
@@ -206,15 +274,19 @@ class Session {
         if (winEnd > this.latestTime()) break;
         this.pending.shift();
         const chart = s.chart!;
-        const i = beat % chart.beats.length;
+        const chartBeat = beat - this.countIn;
+        if (chartBeat < 0) continue; // count-in
+        const i = chartBeat % chart.beats.length;
         const chord = chart.beats[i];
         const audio = this.extract(winStart, winEnd);
         const chroma = await detectors[s.detector](audio, this.ctx!.sampleRate);
-        const { verdict, ratio } = scoreBeat(chroma, chordPitchClasses(chord), s.threshold);
+        const { verdict, ratio } = scoreBeat(chroma, chord, this.refs, { threshold: s.threshold });
         const cur = store.get();
         if (!cur.running) break;
         const results = cur.results.slice();
         results[i] = { verdict, ratio, chord };
+        this.history.set(chartBeat, results[i]!);
+        if (this.history.size > 256) this.history.delete(this.history.keys().next().value!);
         store.set({ results, stats: { ...cur.stats, [verdict]: cur.stats[verdict] + 1 } });
       }
     } finally {
@@ -243,7 +315,7 @@ class Session {
     this.lastPaint = now;
     // The click scheduled at t is heard at t + outputLatency.
     const heard = this.ctx.currentTime - (this.ctx.outputLatency || 0);
-    const beat = Math.floor((heard - this.metro.startTime) / this.metro.secondsPerBeat);
+    const beat = Math.floor((heard - this.metro.startTime) / this.metro.secondsPerBeat) - this.countIn;
     const end = this.latestTime();
     store.set({ beat, liveChroma: chromaFromSamples(this.extract(end - 0.17, end), this.ctx.sampleRate) });
   }
@@ -265,7 +337,8 @@ class Session {
       for (let b = 0; ; b++) {
         const t = this.startTime + b * spb - startSec;
         if (t > samples.length / sr) break;
-        if (t >= 0) beats.push({ index: b, time: +t.toFixed(4), chord: s.chart.beats[b % s.chart.beats.length] });
+        const c = b - this.countIn;
+        if (t >= 0 && c >= 0) beats.push({ index: c, time: +t.toFixed(4), chord: s.chart.beats[c % s.chart.beats.length] });
       }
     }
     const label = { sampleRate: sr, bpm: s.bpm, beatsPerBar: s.beatsPerBar, chart: s.chartText, offsetSec: s.offsetMs / 1000, beats };
@@ -282,3 +355,6 @@ function download(blob: Blob, name: string) {
 }
 
 export const session = new Session();
+
+// Vite hot reload swaps this module; without this the old metronome keeps clicking with no UI attached.
+import.meta.hot?.dispose(() => void session.shutdown());
