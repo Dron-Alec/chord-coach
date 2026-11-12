@@ -25,18 +25,27 @@ const ALIAS: Record<string, string> = {
   min: "m", "-": "m", M7: "maj7", "Δ": "maj7", "°": "dim", sus: "sus4", "+": "aug",
 };
 
-/** "C/G" -> pitch classes of C plus the bass note G. */
-export function chordPitchClasses(name: string): Set<number> {
+export type ParsedChord = { root: string; quality: string; bass?: string };
+
+/** "Amin/G" -> { root: "A", quality: "m", bass: "G" }, quality normalized to a QUALITY key. */
+export function parseChordName(name: string): ParsedChord {
   const [main, bass] = name.trim().split("/");
   const m = main.match(/^([A-G][#b]?)(.*)$/);
   const quality = m ? (ALIAS[m[2]] ?? m[2]) : "";
   if (!m || !(m[1] in ROOT) || !(quality in QUALITY) || (bass !== undefined && !(bass in ROOT))) {
     throw new Error(`Unsupported chord: ${name}`);
   }
-  const root = ROOT[m[1]];
-  const pcs = new Set(QUALITY[quality].map((i) => (root + i) % 12));
+  return { root: m[1], quality, bass };
+}
+
+/** "C/G" -> pitch classes of C plus the bass note G. */
+export function chordPitchClasses(name: string): Set<number> {
+  const { root, quality, bass } = parseChordName(name);
+  const pcs = new Set(QUALITY[quality].map((i) => (ROOT[root] + i) % 12));
   if (bass !== undefined) pcs.add(ROOT[bass]);
   return pcs;
 }
+
+export const pitchClass = (note: string) => ROOT[note];
 
 export const PC_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];

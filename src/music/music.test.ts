@@ -78,3 +78,20 @@ describe("onsetTime", () => {
     expect(onsetTime(new Float32Array(4800), 48000)).toBeNull();
   });
 });
+
+import { voicing } from "./voicings";
+import { QUALITY as Q } from "./chords";
+
+describe("voicing", () => {
+  it("Am open shape", () => expect(voicing("Am").frets).toEqual([-1, 0, 2, 2, 1, 0]));
+  it("barre chords use absolute frets", () => expect(Math.max(...voicing("Bm").frets)).toBeGreaterThan(2));
+  it("slash chord puts the bass lowest", () => expect(voicing("D/F#").midi[0] % 12).toBe(6));
+  it("every root x quality sounds only its own notes", () => {
+    for (const root of ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"])
+      for (const q of Object.keys(Q)) {
+        const name = root + q;
+        const pcs = chordPitchClasses(name);
+        for (const m of voicing(name).midi) expect(pcs.has(m % 12), `${name} has ${m}`).toBe(true);
+      }
+  });
+});
