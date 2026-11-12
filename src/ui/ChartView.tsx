@@ -1,8 +1,17 @@
 import type { Snapshot } from "../engine/session";
+import { parseChart, type Chart } from "../music/chart";
 
 export function ChartView({ s }: { s: Snapshot }) {
-  if (!s.chart) return <p className="muted">Press Play to load the chart.</p>;
-  const { bars, beatsPerBar, beats } = s.chart;
+  let chart: Chart | null = s.chart;
+  if (!s.running) {
+    try {
+      chart = parseChart(s.chartText, s.beatsPerBar);
+    } catch (e) {
+      return <p className="error">{(e as Error).message}</p>;
+    }
+  }
+  if (!chart) return null;
+  const { bars, beatsPerBar, beats } = chart;
   const cur = s.beat >= 0 ? s.beat % beats.length : -1;
   return (
     <div className="chart">
