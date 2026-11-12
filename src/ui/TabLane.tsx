@@ -2,6 +2,11 @@ import { useEffect, useRef } from "react";
 import { session, store, type Lane } from "../engine/session";
 import { parseChart } from "../music/chart";
 import { voicing } from "../music/voicings";
+import { JUDGMENT_LABEL, type Judgment } from "../audio/onset";
+import type { BeatResult } from "../engine/session";
+
+const POPUP_MS = 900;
+const firstSeen = new WeakMap<BeatResult, number>(); // when each result appeared, for the popup animation
 
 const PX_PER_BEAT = 80;
 const PLAYHEAD_X = 140;
@@ -59,7 +64,8 @@ function css(name: string) {
 
 function draw(g: CanvasRenderingContext2D, w: number, lane: Lane | null) {
   const c = { fg: css("--fg"), muted: css("--muted"), line: css("--line"), accent: css("--accent"), card: css("--card"),
-    hit: css("--hit"), miss: css("--miss"), uncertain: css("--unsure") };
+    hit: css("--hit"), miss: css("--miss"), timing: css("--timing") };
+  const judgmentColor: Record<Judgment, string> = { perfect: c.hit, hold: c.hit, early: c.timing, late: c.timing, "not-quite": c.miss };
   g.fillStyle = c.card;
   g.fillRect(0, 0, w, HEIGHT);
   const stringY = (s: number) => TOP + s * STRING_GAP; // 0 = high e (top line, as in tab)
@@ -144,10 +150,34 @@ function draw(g: CanvasRenderingContext2D, w: number, lane: Lane | null) {
 
     // Strum marker under the staff; colored once the beat is scored.
     const r = history.get(b);
-    g.fillStyle = r ? c[r.verdict] : active ? c.accent : c.line;
+    g.fillStyle = r ? judgmentColor[r.judgment] : active ? c.accent : c.line;
     g.beginPath();
     g.arc(x, staffBottom + 22, r ? 7 : 5, 0, Math.PI * 2);
     g.fill();
   }
 
+
+  // Feedback popup for the latest strum: rises and fades next to the playhead.
+  const t = performance.now();
+  let latest: BeatResult | null = null, latestAt = 0;
+  for (const res of history.values()) {
+    if (res.judgment === "hold") continue;
+    if (!firstSeen.has(res)) firstSeen.set(res, t);
+    const at = firstSeen.get(res)!;
+    if (at >= latestAt) [latest, latestAt] = [res, at];
+  }
+  const age = (t - latestAt) / POPUP_MS;
+  if (latest && age < 1) {
+    const ms = latest.timing === null ? "" : ` ${latest.timing > 0 ? "+" : ""}${Math.round(latest.timing * 1000)}ms`;
+    g.globalAlpha = 1 - age * age;
+    g.fillStyle = judgmentColor[latest.judgment];
+    g.font = `800 ${24 + 6 * (1 - age)}px system-ui, sans-serif`;
+    g.textAlign = "left";
+    g.fillText(JUDGMENT_LABEL[latest.judgment], PLAYHEAD_X + 16, TOP + STRING_GAP * 2.6 - age * 24);
+    if (latest.judgment === "early" || latest.judgment === "late") {
+      g.font = "600 13px system-ui, sans-serif";
+      g.fillText(ms.trim(), PLAYHEAD_X + 18, TOP + STRING_GAP * 2.6 + 18 - age * 24);
+    }
+    g.globalAlpha = 1;
+  }
 }

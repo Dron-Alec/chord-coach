@@ -22,9 +22,10 @@ export function Transport({ s }: { s: Snapshot }) {
         </select>
       </label>
       <span className="muted hint">Space starts and stops</span>
+      {s.streak >= 3 && <span className="streak">{s.streak} streak</span>}
       {scored > 0 && (
         <span className="stats">
-          <b>{Math.round((s.stats.hit / scored) * 100)}%</b> · {s.stats.hit} hit · {s.stats.miss} miss · {s.stats.uncertain} unsure
+          <b>{Math.round((s.stats.hit / scored) * 100)}%</b> · {s.stats.hit} hit · {s.stats.miss} miss · {s.stats.uncertain} unsure · best streak {s.bestStreak}
         </span>
       )}
     </div>

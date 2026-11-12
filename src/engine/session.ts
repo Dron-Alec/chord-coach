@@ -1,5 +1,6 @@
 import { Metronome } from "../audio/clock";
-import { chromaFromSamples, onsetTime } from "../audio/chroma";
+import { chromaFromSamples } from "../audio/chroma";
+import { judge, strumOnset, type Judgment } from "../audio/onset";
 import { closeMic, openMic, type Mic } from "../audio/mic";
 import { encodeWav } from "../audio/wav";
 import { parseChart, type Chart } from "../music/chart";
@@ -12,7 +13,13 @@ import { beatWindow, overlapsClick } from "./window";
 
 const KEEP_SECONDS = 6;
 
-export type BeatResult = { verdict: Verdict; ratio: number; chord: string };
+export type BeatResult = {
+  verdict: Verdict;
+  ratio: number;
+  chord: string;
+  timing: number | null; // strum time minus beat time (s); null = no new strum near the beat
+  judgment: Judgment;
+};
 
 export type Settings = {
   chartText: string;
@@ -32,6 +39,8 @@ export type Snapshot = Settings & {
   beat: number | null; // chart beat currently heard (negative during the count-in), null when stopped
   results: (BeatResult | null)[]; // latest result per chart beat
   stats: Record<Verdict, number>;
+  streak: number; // strums in a row on the right chord
+  bestStreak: number;
   liveChroma: number[];
   recording: boolean;
   calibration: string | null;
@@ -61,6 +70,8 @@ export const store = createStore<Snapshot>({
   beat: null,
   results: [],
   stats: { hit: 0, miss: 0, uncertain: 0 },
+  streak: 0,
+  bestStreak: 0,
   liveChroma: new Array(12).fill(0),
   recording: false,
   calibration: null,
@@ -200,6 +211,8 @@ class Session {
       running: true, mode, error: null, chart, beat: -this.countIn,
       results: chart ? new Array(chart.beats.length).fill(null) : [],
       stats: { hit: 0, miss: 0, uncertain: 0 },
+      streak: 0,
+      bestStreak: 0,
       calibration: mode === "calibrate" ? "Clap on each click…" : null,
     });
     this.raf = requestAnimationFrame(() => this.paint());
@@ -271,13 +284,15 @@ class Session {
           if (real + 0.5 > this.latestTime()) break;
           this.pending.shift();
           // Raw offset from scheduled click to clap; independent of current offsetMs.
-          const t = onsetTime(this.extract(time - 0.05, time + 0.5), this.ctx!.sampleRate);
+          const t = strumOnset(this.extract(time - 0.05, time + 0.5), this.ctx!.sampleRate);
           if (beat >= 2 && t !== null) this.calOffsets.push(t - 0.05);
           this.reportCalibration();
           continue;
         }
         const [winStart, winEnd] = beatWindow(real, spb, s.clickVolume > 0);
-        if (winEnd > this.latestTime()) break;
+        // Strums this far either side of the beat count as early/late for this beat.
+        const reach = Math.min(0.3 * spb, 0.2);
+        if (Math.max(winEnd, real + reach) > this.latestTime()) break;
         this.pending.shift();
         const chart = s.chart!;
         const chartBeat = beat - this.countIn;
@@ -289,13 +304,23 @@ class Session {
         // Nothing played (or only the click, which is skipped): no verdict, no dot, not counted.
         if (!chroma.some((v) => v > 0)) continue;
         const { verdict, ratio } = scoreBeat(chroma, chord, this.refs, { threshold: s.threshold });
+        const onset = strumOnset(this.extract(real - reach, real + reach), this.ctx!.sampleRate);
+        const timing = onset === null ? null : onset - reach;
+        const judgment = judge(verdict, timing);
+        if (!judgment) continue;
         const cur = store.get();
         if (!cur.running) break;
         const results = cur.results.slice();
-        results[i] = { verdict, ratio, chord };
+        results[i] = { verdict, ratio, chord, timing, judgment };
         this.history.set(chartBeat, results[i]!);
         if (this.history.size > 256) this.history.delete(this.history.keys().next().value!);
-        store.set({ results, stats: { ...cur.stats, [verdict]: cur.stats[verdict] + 1 } });
+        const streak = judgment === "not-quite" ? 0 : judgment === "hold" ? cur.streak : cur.streak + 1;
+        store.set({
+          results,
+          stats: { ...cur.stats, [verdict]: cur.stats[verdict] + 1 },
+          streak,
+          bestStreak: Math.max(cur.bestStreak, streak),
+        });
       }
     } finally {
       this.scoring = false;
