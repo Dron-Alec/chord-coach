@@ -60,7 +60,7 @@ export function strumOnset(
 export type Judgment = "perfect" | "early" | "late" | "not-quite" | "hold";
 
 // ponytail: Guitar Hero-ish window; widen if real players find "Perfect" too strict.
-export const TIMING = { perfect: 0.05 };
+export const TIMING = { perfect: 0.08 };
 
 /** null = nothing to judge. hold = right chord still ringing with no new strum near the beat (strumming once per bar is fine). */
 export function judge(verdict: "hit" | "miss" | "uncertain", timing: number | null): Judgment | null {
