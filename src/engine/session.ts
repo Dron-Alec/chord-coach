@@ -298,6 +298,7 @@ class Session {
         const chartBeat = beat - this.countIn;
         if (chartBeat < 0) continue; // count-in
         const i = chartBeat % chart.beats.length;
+        if (!chart.starts[i]) continue; // one judgment per chord, on the beat it's due
         const chord = chart.beats[i];
         const audio = this.extract(winStart, winEnd);
         const chroma = await detectors[s.detector](audio, this.ctx!.sampleRate);

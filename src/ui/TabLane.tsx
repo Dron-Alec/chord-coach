@@ -109,7 +109,7 @@ function draw(g: CanvasRenderingContext2D, w: number, lane: Lane | null) {
     const i = b % n;
     const chord = chart.beats[i];
     const barStart = i % chart.beatsPerBar === 0;
-    const changes = barStart || chart.beats[(i - 1 + n) % n] !== chord;
+    const changes = chart.starts[i];
 
     if (barStart) {
       g.strokeStyle = c.muted;
@@ -148,7 +148,8 @@ function draw(g: CanvasRenderingContext2D, w: number, lane: Lane | null) {
       g.textBaseline = "alphabetic";
     }
 
-    // Strum marker under the staff; colored once the beat is scored.
+    // Strum marker under each chord; colored once it is judged.
+    if (!changes) continue;
     const r = history.get(b);
     g.fillStyle = r ? judgmentColor[r.judgment] : active ? c.accent : c.line;
     g.beginPath();

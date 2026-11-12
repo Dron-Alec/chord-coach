@@ -45,9 +45,10 @@ export function Progression({ s }: { s: Snapshot }) {
   const locked = s.running;
 
   let bars: string[][] = [];
+  let starts: boolean[] = [];
   let error: string | null = null;
   try {
-    bars = parseChart(s.chartText, s.beatsPerBar).bars;
+    ({ bars, starts } = parseChart(s.chartText, s.beatsPerBar));
   } catch (e) {
     error = (e as Error).message;
   }
@@ -115,9 +116,9 @@ export function Progression({ s }: { s: Snapshot }) {
               </span>
             ))}
             <span className="dots">
-              {Array.from({ length: s.beatsPerBar }, (_, k) => (
-                <i key={k} className={s.results[b * s.beatsPerBar + k]?.judgment ?? ""} />
-              ))}
+              {Array.from({ length: s.beatsPerBar }, (_, k) => b * s.beatsPerBar + k)
+                .filter((i) => starts[i])
+                .map((i) => <i key={i} className={s.results[i]?.judgment ?? ""} />)}
             </span>
             {!locked && (
               <button

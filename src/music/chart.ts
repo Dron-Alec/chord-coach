@@ -4,6 +4,7 @@ export type Chart = {
   beatsPerBar: number;
   bars: string[][]; // chords as written in each bar
   beats: string[]; // one chord name per beat, the whole chart
+  starts: boolean[]; // per beat: a chord as written begins here (where it is judged)
 };
 
 /**
@@ -27,10 +28,15 @@ export function parseChart(text: string, beatsPerBar = 4): Chart {
   if (!bars.length) throw new Error("Empty chart");
 
   const beats: string[] = [];
+  const starts: boolean[] = [];
   for (const bar of bars) {
     const each = Math.floor(beatsPerBar / bar.length);
     const extra = beatsPerBar - each * bar.length;
-    bar.forEach((c, i) => beats.push(...Array(each + (i === 0 ? extra : 0)).fill(c)));
+    bar.forEach((c, i) => {
+      const len = each + (i === 0 ? extra : 0);
+      beats.push(...Array(len).fill(c));
+      starts.push(true, ...Array(len - 1).fill(false));
+    });
   }
-  return { beatsPerBar, bars, beats };
+  return { beatsPerBar, bars, beats, starts };
 }

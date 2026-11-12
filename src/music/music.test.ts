@@ -31,6 +31,7 @@ describe("parseChart", () => {
   it("splits bars and handles %, newlines, 3/4", () => {
     expect(parseChart("C G | %\nAm", 4).beats).toEqual(["C", "C", "G", "G", "C", "C", "G", "G", "Am", "Am", "Am", "Am"]);
     expect(parseChart("C F G", 4).beats).toEqual(["C", "C", "F", "G"]);
+    expect(parseChart("C F G | C", 4).starts).toEqual([true, false, true, true, true, false, false, false]);
     expect(parseChart("D | A", 3).beats).toEqual(["D", "D", "D", "A", "A", "A"]);
   });
   it("rejects bad input", () => {
