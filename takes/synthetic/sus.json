@@ -1,0 +1,89 @@
+{
+  "sampleRate": 24000,
+  "bpm": 108,
+  "beatsPerBar": 4,
+  "chart": "D Dsus4 | Dsus2 D | A Asus4 | Asus2 A",
+  "offsetSec": 0.1131,
+  "beats": [
+    {
+      "index": 0,
+      "time": 0.4,
+      "chord": "D"
+    },
+    {
+      "index": 1,
+      "time": 0.9556,
+      "chord": "D"
+    },
+    {
+      "index": 2,
+      "time": 1.5111,
+      "chord": "Dsus4"
+    },
+    {
+      "index": 3,
+      "time": 2.0667,
+      "chord": "Dsus4"
+    },
+    {
+      "index": 4,
+      "time": 2.6222,
+      "chord": "Dsus2"
+    },
+    {
+      "index": 5,
+      "time": 3.1778,
+      "chord": "Dsus2"
+    },
+    {
+      "index": 6,
+      "time": 3.7333,
+      "chord": "D"
+    },
+    {
+      "index": 7,
+      "time": 4.2889,
+      "chord": "D"
+    },
+    {
+      "index": 8,
+      "time": 4.8444,
+      "chord": "A"
+    },
+    {
+      "index": 9,
+      "time": 5.4,
+      "chord": "A"
+    },
+    {
+      "index": 10,
+      "time": 5.9556,
+      "chord": "Asus4"
+    },
+    {
+      "index": 11,
+      "time": 6.5111,
+      "chord": "Asus4"
+    },
+    {
+      "index": 12,
+      "time": 7.0667,
+      "chord": "Asus2"
+    },
+    {
+      "index": 13,
+      "time": 7.6222,
+      "chord": "Asus2"
+    },
+    {
+      "index": 14,
+      "time": 8.1778,
+      "chord": "A"
+    },
+    {
+      "index": 15,
+      "time": 8.7333,
+      "chord": "A"
+    }
+  ]
+}

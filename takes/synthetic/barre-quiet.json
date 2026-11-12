@@ -1,0 +1,89 @@
+{
+  "sampleRate": 24000,
+  "bpm": 116,
+  "beatsPerBar": 4,
+  "chart": "Bm | F#m | Bb | F",
+  "offsetSec": 0.0773,
+  "beats": [
+    {
+      "index": 0,
+      "time": 0.4,
+      "chord": "Bm"
+    },
+    {
+      "index": 1,
+      "time": 0.9172,
+      "chord": "Bm"
+    },
+    {
+      "index": 2,
+      "time": 1.4345,
+      "chord": "Bm"
+    },
+    {
+      "index": 3,
+      "time": 1.9517,
+      "chord": "Bm"
+    },
+    {
+      "index": 4,
+      "time": 2.469,
+      "chord": "F#m"
+    },
+    {
+      "index": 5,
+      "time": 2.9862,
+      "chord": "F#m"
+    },
+    {
+      "index": 6,
+      "time": 3.5034,
+      "chord": "F#m"
+    },
+    {
+      "index": 7,
+      "time": 4.0207,
+      "chord": "F#m"
+    },
+    {
+      "index": 8,
+      "time": 4.5379,
+      "chord": "Bb"
+    },
+    {
+      "index": 9,
+      "time": 5.0552,
+      "chord": "Bb"
+    },
+    {
+      "index": 10,
+      "time": 5.5724,
+      "chord": "Bb"
+    },
+    {
+      "index": 11,
+      "time": 6.0897,
+      "chord": "Bb"
+    },
+    {
+      "index": 12,
+      "time": 6.6069,
+      "chord": "F"
+    },
+    {
+      "index": 13,
+      "time": 7.1241,
+      "chord": "F"
+    },
+    {
+      "index": 14,
+      "time": 7.6414,
+      "chord": "F"
+    },
+    {
+      "index": 15,
+      "time": 8.1586,
+      "chord": "F"
+    }
+  ]
+}

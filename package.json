@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "eval": "node scripts/run.mjs scripts/eval.ts",
+    "gen-synthetic": "node scripts/run.mjs scripts/gen-synthetic.ts"
   },
   "dependencies": {
     "@spotify/basic-pitch": "^1.0.1",
